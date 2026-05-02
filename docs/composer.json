@@ -1,0 +1,12 @@
+{
+    "name": "user/edu_lalin",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "User\\EduLalin\\": "src/"
+        }
+    },
+    "require": {
+        "phpmailer/phpmailer": "^7.0"
+    }
+}
