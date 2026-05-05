@@ -1,113 +1,105 @@
 <?php
+ob_start();
 require_once "../config.php";
 require_admin_or_guru();
 
 $flash='';$flash_type='ok';
 
 if($_SERVER['REQUEST_METHOD']==='POST'&&isset($_POST['add_modul'])){
-  if(!is_admin()){$flash='Anda tidak memiliki akses untuk menambah modul!';$flash_type='err';}
-  else{
-    $tipe=trim($_POST['tipe_modul']??'');
-    $jenjang=trim($_POST['jenjang']??'');
-    $kelas=trim($_POST['kelas']??'');
-    $judul=trim($_POST['judul']??'');
-    $desk=trim($_POST['deskripsi']??'');
-    $filePath=null;$videoUrl=null;
-    $kategori=trim($_POST['kategori_modul']??'');
-    $minUsia=!empty($_POST['min_usia'])?(int)$_POST['min_usia']:null;
+  if(!is_admin()){
+    $flash='Anda tidak memiliki akses untuk menambah modul!';
+    $flash_type='err';
+  } else {
+    $tipe    = trim($_POST['tipe_modul']??'');
+    $jenjang = trim($_POST['jenjang']??'');
+    $kelas   = trim($_POST['kelas']??'');
+    $judul   = trim($_POST['judul']??'');
+    $desk    = trim($_POST['deskripsi']??'');
+    $kategori= trim($_POST['kategori_modul']??'');
+    $minUsia = !empty($_POST['min_usia']) ? (int)$_POST['min_usia'] : null;
+    $filePath= null;
+    $videoUrl= null;
 
-    // Validasi bertahap — semua pakai if-elseif agar berhenti di error pertama
+    // Validasi
     if($judul===''){
-      $flash='Judul wajib diisi.';$flash_type='err';
-    }elseif($tipe===''){
-      $flash='Pilih tipe modul.';$flash_type='err';
-    }elseif($kategori===''){
-      $flash='Kategori modul wajib dipilih.';$flash_type='err';
-    }elseif($kategori==='sekolah'&&($jenjang===''||$kelas==='')){
-      $flash='Jenjang dan kelas wajib diisi untuk modul sekolah.';$flash_type='err';
-    }elseif($kategori==='sim'&&empty($minUsia)){
-      $flash='Minimal usia wajib diisi untuk modul SIM.';$flash_type='err';
+      $flash='Judul wajib diisi.'; $flash_type='err';
+    } elseif($tipe===''){
+      $flash='Pilih tipe modul.'; $flash_type='err';
+    } elseif($kategori===''){
+      $flash='Kategori modul wajib dipilih.'; $flash_type='err';
+    } elseif($kategori==='sekolah' && $jenjang===''){
+      $flash='Jenjang wajib diisi untuk modul sekolah.'; $flash_type='err';
+    } elseif($kategori==='sekolah' && ($kelas==='' || (int)$kelas<=0)){
+      $flash='Kelas wajib diisi untuk modul sekolah.'; $flash_type='err';
+    } elseif($kategori==='sim' && empty($minUsia)){
+      $flash='Minimal usia wajib diisi untuk modul SIM.'; $flash_type='err';
     }
 
-    // Hanya lanjut kalau belum ada error
-    if($flash===''){
-      if($tipe==='pdf'||$tipe==='ppt'){
-        if(!empty($_FILES['file_modul']['name'])&&$_FILES['file_modul']['error']===UPLOAD_ERR_OK){
-          $uploadDir='../uploads/modul/';
-          if(!is_dir($uploadDir))mkdir($uploadDir,0777,true);
-          $ext=strtolower(pathinfo($_FILES['file_modul']['name'],PATHINFO_EXTENSION));
-          if(in_array($ext,['pdf','ppt','pptx'],true)){
-            $newName='modul_'.time().'_'.rand(1000,9999).'.'.$ext;
-            if(move_uploaded_file($_FILES['file_modul']['tmp_name'],$uploadDir.$newName)){
-              $filePath='uploads/modul/'.$newName;
-            }else{
-              $flash='Gagal mengupload file.';$flash_type='err';
-            }
-          }else{
-            $flash='File harus PDF, PPT, atau PPTX.';$flash_type='err';
+    // Upload file
+    if($flash==='' && ($tipe==='pdf' || $tipe==='ppt')){
+      if(!empty($_FILES['file_modul']['name']) && $_FILES['file_modul']['error']===UPLOAD_ERR_OK){
+        $uploadDir='../uploads/modul/';
+        if(!is_dir($uploadDir)) mkdir($uploadDir,0777,true);
+        $ext=strtolower(pathinfo($_FILES['file_modul']['name'],PATHINFO_EXTENSION));
+        if(in_array($ext,['pdf','ppt','pptx'],true)){
+          $newName=preg_replace('/[^A-Za-z0-9.\-]/','_',$_FILES['file_modul']['name']);
+          if(move_uploaded_file($_FILES['file_modul']['tmp_name'],$uploadDir.$newName)){
+            $filePath='uploads/modul/'.$newName;
+          } else {
+            $flash='Gagal mengupload file.'; $flash_type='err';
           }
-        }else{
-          $flash='File dokumen wajib untuk tipe PDF/PPT.';$flash_type='err';
+        } else {
+          $flash='File harus PDF, PPT, atau PPTX.'; $flash_type='err';
         }
-      }
-
-      if($flash===''&&$tipe==='video'){
-        $videoUrl=trim($_POST['video_url']??'');
-        if($videoUrl===''){
-          $flash='Link video wajib diisi.';$flash_type='err';
-        }elseif(!filter_var($videoUrl,FILTER_VALIDATE_URL)){
-          $flash='Format link video tidak valid.';$flash_type='err';
-        }
+      } else {
+        $flash='File dokumen wajib untuk tipe PDF/PPT.'; $flash_type='err';
       }
     }
 
+    // Video URL
+    if($flash==='' && $tipe==='video'){
+      $videoUrl=trim($_POST['video_url']??'');
+      if($videoUrl===''){
+        $flash='Link video wajib diisi.'; $flash_type='err';
+      } elseif(!filter_var($videoUrl,FILTER_VALIDATE_URL)){
+        $flash='Format link video tidak valid.'; $flash_type='err';
+      }
+    }
+
+    // Insert DB
     if($flash===''){
       $tipeDb = in_array($tipe,['pdf','ppt']) ? $tipe : 'video';
 
-      if($kategori==='sim'){
-        $jenjang = null;
-        $kelas   = null;
-        $minUsia = (int)$minUsia;
-      } else {
-        $minUsia = null;
-        $kelas = ($kelas !== '' && $kelas !== null && $kelas !== '0') ? (int)$kelas : null;
-      }
-      // Sebelum prepare, pastikan null benar-benar null
-      $jenjangVal = ($jenjang !== '' && $jenjang !== null) ? $jenjang : null;
-      $kelasVal   = ($kelas   !== '' && $kelas   !== null && (int)$kelas > 0) ? (int)$kelas : null;
-      $minUsiaVal = ($minUsia !== null && $minUsia > 0) ? (int)$minUsia : null;
+      $jenjangBind = ($kategori==='sekolah' && $jenjang!=='') ? $jenjang : '';
+      $kelasVal    = ($kategori==='sekolah' && (int)$kelas>0) ? (int)$kelas : 0;
+      $minUsiaVal  = ($kategori==='sim' && $minUsia>0) ? (int)$minUsia : 0;
+      $fileBind    = $filePath ?? '';
+      $videoBind   = $videoUrl ?? '';
 
-      $sql = "INSERT INTO modul (judul, deskripsi, file_path, video_url, tipe, kategori, is_active, jenjang, kelas, min_usia) 
-              VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)";
-
-      $stmt = $conn->prepare($sql);
-      $stmt->bind_param(
-          "ssssssssi",   // ← jenjang pakai "s", kelas & min_usia pakai "i"... tapi kelas bisa null
-          $judul,
-          $desk,
-          $filePath,
-          $videoUrl,
-          $tipeDb,
-          $kategori,
-          $jenjangVal,
-          $kelasVal,
-          $minUsiaVal
+      $stmt = $conn->prepare(
+        "INSERT INTO modul (judul, deskripsi, file_path, video_url, tipe, kategori, is_active, jenjang, kelas, min_usia)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)"
       );
 
-      if (!$stmt->execute()) {
-          die("Execute error: " . $stmt->error);
-      }
+      if(!$stmt){ die("Prepare gagal: ".$conn->error); }
 
+      $stmt->bind_param("sssssssii",
+        $judul, $desk, $fileBind, $videoBind,
+        $tipeDb, $kategori, $jenjangBind, $kelasVal, $minUsiaVal
+      );
+
+      if(!$stmt->execute()){
+        die("Execute gagal: ".$stmt->error); // debug — hapus setelah fix
+      }
       $stmt->close();
 
-      if(function_exists('log_activity')) {
-          log_activity('modul','tambah','Modul baru: '.$judul);
-      }
-
-      $flash = 'Modul berhasil ditambahkan!';
+      if(function_exists('log_activity'))
+        log_activity('modul','tambah','Modul baru: '.$judul);
 
       header("Location: modul.php?msg=tambah");
       exit;
+    }else{
+        echo $flash;
     }
   }
 }
@@ -185,7 +177,7 @@ if(isset($_GET['msg'])){
 <div class="adm-form-card">
   <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Tambah Modul Baru</h3>
   <p>Upload modul pembelajaran dengan file PDF, PPT, atau link video</p>
-  <form method="post" enctype="multipart/form-data" class="adm-form-grid" id="formModul">
+  <form method="post" enctype="multipart/form-data" class="adm-form-grid" id="formModul" novalidate>
     <div class="adm-form-col">
       <div>
         <label class="adm-label">Kategori Modul</label>
@@ -197,7 +189,7 @@ if(isset($_GET['msg'])){
       </div>
       <div id="g_jenjang">
         <label class="adm-label">Jenjang Pendidikan</label>
-        <select name="jenjang" id="inp_jenjang" class="adm-input" required>
+        <select name="jenjang" id="inp_jenjang" class="adm-input">
           <option value="">Pilih jenjang</option>
           <option value="sd">SD</option>
           <option value="smp">SMP</option>
@@ -206,7 +198,7 @@ if(isset($_GET['msg'])){
       </div>
       <div id="g_kelas">
         <label class="adm-label">Kelas</label>
-        <input type="text" name="kelas" id="inp_kelas" class="adm-input" placeholder="1, 5, 8, 12">
+        <input type="number" name="kelas" id="inp_kelas" class="adm-input" placeholder="Contoh: 5">
       </div>
       <div id="g_usia" style="display:none">
         <label class="adm-label">Minimal Usia</label>
@@ -360,28 +352,47 @@ var gDesk= document.getElementById('g_desk');
 var inpJ = document.getElementById('inp_jenjang');
 var inpK = document.getElementById('inp_kelas');
 
-if(kat) kat.addEventListener('change', function(){
-  if(this.value === 'sim'){
+function updateKategori(val) {
+  if(val === 'sim'){
     gU.style.display = 'block';
     gJ.style.display = 'none';
     gK.style.display = 'none';
-
-    // kosongin value
     inpJ.value = '';
     inpK.value = '';
-
-    // 🔥 PENTING: matiin required
     inpJ.removeAttribute('required');
     inpK.removeAttribute('required');
-
-  } else {
+  } else if(val === 'sekolah'){
     gU.style.display = 'none';
     gJ.style.display = 'block';
     gK.style.display = 'block';
-
-    // 🔥 balikin required
     inpJ.setAttribute('required', true);
-    inpK.setAttribute('required', true);
+    // kelas tidak required, validasi di PHP
+  } else {
+    // belum pilih kategori
+    gU.style.display = 'none';
+    gJ.style.display = 'none';
+    gK.style.display = 'none';
+  }
+}
+
+// Jalankan saat halaman load juga
+updateKategori(kat ? kat.value : '');
+
+if(kat) kat.addEventListener('change', function(){ updateKategori(this.value); });
+
+// Validasi manual sebelum submit
+document.getElementById('formModul').addEventListener('submit', function(e){
+  var katVal  = kat ? kat.value : '';
+  var tipeVal = tipe ? tipe.value : '';
+  var judulVal = document.querySelector('[name="judul"]').value.trim();
+
+  // if(!judulVal){ alert('Judul wajib diisi!'); e.preventDefault(); return; }
+  if(!tipeVal){ alert('Pilih tipe modul!'); e.preventDefault(); return; }
+  if(!katVal){ alert('Pilih kategori modul!'); e.preventDefault(); return; }
+  if(katVal === 'sekolah' && !inpK.value){ alert('Kelas wajib diisi!'); e.preventDefault(); return; }
+  if(katVal === 'sim'){
+    var usia = document.querySelector('[name="min_usia"]').value;
+    if(!usia){ alert('Minimal usia wajib diisi!'); e.preventDefault(); return; }
   }
 });
 
