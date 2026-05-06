@@ -53,6 +53,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $data = $_SESSION['pending_registration'];
 
+                    $tanggal = !empty($data['tanggal_lahir']) ? $data['tanggal_lahir'] : null;
+                    $tempat  = !empty($data['tempat_lahir'])  ? $data['tempat_lahir']  : null;
+                    $kelas   = !empty($data['kelas'])         ? $data['kelas']         : null;
+                    $jenjang = !empty($data['jenjang'])       ? $data['jenjang']       : null;
+                    $ig      = !empty($data['instagram'])     ? $data['instagram']     : null;
+                    $tt      = !empty($data['tiktok'])        ? $data['tiktok']        : null;
+
                     $stmt = $conn->prepare("
                         INSERT INTO users 
                         (
@@ -77,15 +84,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->bind_param(
                         "ssssssssssss",
                         $data['nama'],
-                        $data['tempat_lahir'],
-                        $data['tanggal_lahir'],
+                        $tempat,
+                        $tanggal,
                         $data['asal_sekolah'],
-                        $data['kelas'],
-                        $data['jenjang'],
+                        $kelas,
+                        $jenjang,
                         $data['email'],
                         $data['no_telp'],
-                        $data['instagram'],
-                        $data['tiktok'],
+                        $ig,
+                        $tt,
                         $data['password'],
                         $data['role']
                     );

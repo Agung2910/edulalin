@@ -73,12 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'role'          => $role_db,
             'asal_sekolah'  => $asal_sekolah,
             'no_telp'       => $no_telp,
-            'tempat_lahir'  => $tempat_lahir,
-            'tanggal_lahir' => $tanggal_lahir,
-            'kelas'         => $kelas,
-            'jenjang'       => $jenjang,
-            'instagram'     => $instagram,
-            'tiktok'        => $tiktok,
+            'tempat_lahir'  => ($role_daftar === 'siswa') ? $tempat_lahir  : '',
+            'tanggal_lahir' => ($role_daftar === 'siswa') ? $tanggal_lahir : '',
+            'kelas'         => ($role_daftar === 'siswa') ? $kelas         : '',
+            'jenjang'       => ($role_daftar === 'siswa') ? $jenjang       : '',
+            'instagram'     => ($role_daftar === 'siswa') ? $instagram     : '',
+            'tiktok'        => ($role_daftar === 'siswa') ? $tiktok        : '',
         ];
 
         $otp = generateOTP();
