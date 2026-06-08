@@ -109,8 +109,9 @@ $stmt->close();
                         <?php if ($row['total_soal'] > 0): ?>
                             <a href="quiz_detail.php?materi_id=<?= $row['id'] ?>" class="btn btn-primary">Mulai</a>
                         <?php else: ?>
-                            <span class="text-muted">-</span>
+                            <span class="btn" style="visibility:hidden;">Mulai</span>
                         <?php endif; ?>
+                        <a href="materi.php?modul_id=<?= $row['id'] ?>" class="btn btn-outline">📚 Review Materi</a>
                         </td>
                     </tr>
                     <?php 
@@ -130,7 +131,6 @@ $stmt->close();
                     Tips: Pastikan sudah mempelajari materi sebelum mengerjakan quiz.
                 </div>
                     <div class="bottom-btn-row">
-                        <a href="materi.php?modul_id=<?php echo $modul_id; ?>" class="btn btn-outline">📚 Review Materi</a>
                         <a href="progress.php" class="btn btn-outline">📊 Lihat Progress</a>
                     </div>
                 </div>

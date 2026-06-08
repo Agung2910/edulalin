@@ -31,13 +31,6 @@ $questions = [];
 while ($row = $result->fetch_assoc()) $questions[] = $row;
 $stmt->close();
 
-// Ambil modul_id asli untuk tombol kembali ke materi
-$stmtMod = $conn->prepare("SELECT id FROM modul WHERE id = ?");
-$stmtMod->bind_param("i", $materi_id);
-$stmtMod->execute();
-$stmtMod->bind_result($the_modul_id);
-$stmtMod->fetch();
-$stmtMod->close();
 ?><!DOCTYPE html>
 <html lang="id">
 <head>
@@ -723,6 +716,54 @@ body {
 }
 
 .multi-badge.visible { opacity: 1; }
+
+#memePopup{
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0,0,0,0.88);
+
+  z-index: 999999;
+
+  opacity: 0;
+  pointer-events: none;
+
+  transition: opacity .25s ease;
+}
+
+#memePopup.show{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#memeImg{
+  max-width: 90vw;
+  max-height: 90vh;
+
+  border-radius: 24px;
+
+  object-fit: contain;
+
+  box-shadow:
+    0 20px 80px rgba(0,0,0,0.7);
+
+  animation: memePop .3s ease;
+}
+
+@keyframes memePop{
+  from{
+    transform: scale(.8);
+    opacity:0;
+  }
+  to{
+    transform: scale(1);
+    opacity:1;
+  }
+}
 </style>
 </head>
 <body>
@@ -817,11 +858,17 @@ body {
   <div class="result-card" id="resultCard"></div>
 </div>
 
+<!-- MEME POPUP -->
+<div id="memePopup">
+  <img id="memeImg" src="">
+  <div id="memeCaption"></div>
+</div>
+
 <script>
 // ── DATA ──
 const questions = <?= json_encode($questions, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT) ?>;
 const materi_id  = <?= $materi_id ?>;
-const modul_id   = <?= $the_modul_id ?>;
+const modul_id   = <?= $modul_id_db ?>;
 const jenjang    = <?= json_encode(strtoupper($jenjang_modul)) ?>;
 const kelas      = <?= json_encode($kelas_modul) ?>;
 const total      = questions.length;
@@ -844,6 +891,57 @@ let puTimeUsed  = false;
 
 // ── HELPERS ──
 function $(id) { return document.getElementById(id); }
+// ── MEME SYSTEM ──
+const memeBenar = [
+  {img: 'assets/img/meme/benar1.jpeg',},
+  {img: 'assets/img/meme/benar2.jpeg',},
+  {img: 'assets/img/meme/benar3.jpeg',},
+  {img: 'assets/img/meme/benar4.jpeg',},
+  {img: 'assets/img/meme/benar5.jpeg',},
+  {img: 'assets/img/meme/benar6.jpeg',},
+  {img: 'assets/img/meme/benar7.jpeg',},
+  {img: 'assets/img/meme/benar8.jpeg',},
+  {img: 'assets/img/meme/benar9.jpeg',},
+];
+
+const memeSalah = [
+  {img: 'assets/img/meme/salah1.jpeg',},
+  {img: 'assets/img/meme/salah2.jpeg',},
+  {img: 'assets/img/meme/salah3.jpeg',},
+  {img: 'assets/img/meme/salah4.jpeg',},
+  {img: 'assets/img/meme/salah5.jpeg',},
+  {img: 'assets/img/meme/salah6.jpeg',},
+  {img: 'assets/img/meme/salah7.jpeg',},
+  {img: 'assets/img/meme/salah8.jpeg',},
+  {img: 'assets/img/meme/salah9.jpeg',},
+];
+
+function showMeme(type, onDone) {
+  const popup = $('memePopup');
+  const img   = $('memeImg');
+
+  const data =
+    type === 'correct'
+      ? memeBenar[Math.floor(Math.random() * memeBenar.length)]
+      : memeSalah[Math.floor(Math.random() * memeSalah.length)];
+
+  img.src = data.img;
+  popup.classList.add('show');
+
+  // Klik meme = tutup langsung + lanjut
+  popup.onclick = () => {
+    clearTimeout(popup._memeTimer);
+    popup.classList.remove('show');
+    popup.onclick = null;
+    if (typeof onDone === 'function') onDone();
+  };
+
+  popup._memeTimer = setTimeout(() => {
+    popup.classList.remove('show');
+    popup.onclick = null;
+    if (typeof onDone === 'function') onDone();
+  }, 1800);
+}
 
 function calcPoin(timeUsed, multiplier) {
   const ratio = 1 - (timeUsed / TIMER_SEC);
@@ -999,34 +1097,9 @@ document.querySelectorAll('.opt-btn').forEach(btn => {
       if (b.dataset.opt === sel && !isCorrect)     b.classList.add('wrong');
     });
 
-    if (isCorrect) {
-      benar++;
-      streak++;
-      if (streak > maxStreak) maxStreak = streak;
-      totalPoin += poin;
-      $('liveScore').textContent = totalPoin;
-
-      // Pop poin
-      showPtsPop('+' + poin, this);
-
-      // Streak pop khusus
-      if (streak === 3 || streak === 5 || streak === 10) {
-        showStreakPop();
-      }
-
-      // Confetti kecil
-      spawnMiniConfetti();
-    } else {
-      salah++;
-      streak = 0;
-      $('questionBox').classList.add('shake');
-      setTimeout(() => $('questionBox').classList.remove('shake'), 500);
-    }
-
     updateStreakUI();
     avgTime.push(timeUsed);
 
-    // Catat detail
     detail.push({
       soal: questions[idx].pertanyaan,
       opsi_a: questions[idx].opsi_a,
@@ -1040,7 +1113,23 @@ document.querySelectorAll('.opt-btn').forEach(btn => {
       is_correct: isCorrect
     });
 
-    setTimeout(nextQ, 1100);
+    if (isCorrect) {
+      benar++;
+      streak++;
+      if (streak > maxStreak) maxStreak = streak;
+      totalPoin += poin;
+      $('liveScore').textContent = totalPoin;
+      showPtsPop('+' + poin, this);
+      if (streak === 3 || streak === 5 || streak === 10) showStreakPop();
+      spawnMiniConfetti();
+      showMeme('correct', nextQ);   // ← 'correct', bukan true
+    } else {
+      salah++;
+      streak = 0;
+      $('questionBox').classList.add('shake');
+      setTimeout(() => $('questionBox').classList.remove('shake'), 500);
+      showMeme('wrong', nextQ);     // ← 'wrong', bukan false
+    }
   });
 });
 
@@ -1088,22 +1177,44 @@ function showStreakPop() {
 }
 
 function spawnMiniConfetti() {
-  const colors = ['#facc15','#3b82f6','#10b981','#f472b6','#a78bfa'];
-  for (let i = 0; i < 12; i++) {
-    const c   = document.createElement('div');
+
+  const colors = [
+    '#facc15',
+    '#3b82f6',
+    '#10b981',
+    '#f472b6',
+    '#a78bfa',
+    '#ef4444',
+    '#ffffff'
+  ];
+
+  for (let i = 0; i < 80; i++) {
+
+    const c = document.createElement('div');
+
     const col = colors[Math.floor(Math.random() * colors.length)];
-    const sz  = 5 + Math.random() * 6;
+
+    const size = 4 + Math.random() * 10;
+
     c.style.cssText = `
       position:fixed;
-      left:${20 + Math.random()*60}%;
-      top:${60 + Math.random()*20}%;
-      width:${sz}px;height:${sz}px;
-      background:${col};border-radius:2px;
-      pointer-events:none;z-index:999;
-      animation:cfall ${0.6+Math.random()*0.6}s ease forwards;
+      left:${Math.random()*100}%;
+      top:-10px;
+      width:${size}px;
+      height:${size}px;
+      background:${col};
+      border-radius:${Math.random()>0.5 ? '50%' : '2px'};
+      pointer-events:none;
+      z-index:9999;
+
+      transform:rotate(${Math.random()*360}deg);
+
+      animation:cfall ${2 + Math.random()*3}s linear forwards;
     `;
+
     document.body.appendChild(c);
-    setTimeout(() => c.remove(), 1200);
+
+    setTimeout(() => c.remove(), 5000);
   }
 }
 

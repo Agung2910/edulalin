@@ -33,6 +33,33 @@ while ($row = $result->fetch_assoc()) {
 $stmt->close();
 
 // Ambil data user dari DB, jangan andalkan session untuk validasi
+$stmtProgress = $conn->prepare("
+    INSERT INTO progress (
+        user_id,
+        modul_id,
+        is_read,
+        skor,
+        poin_total,
+        status,
+        attempt,
+        updated_at
+    )
+    VALUES (?, ?, 1, 0, 0, 'selesai', 1, NOW())
+
+    ON DUPLICATE KEY UPDATE
+        is_read = 1,
+        status = 'selesai',
+        updated_at = NOW()
+");
+
+$stmtProgress->bind_param(
+    "ii",
+    $_SESSION['user_id'],
+    $modul_id
+);
+
+$stmtProgress->execute();
+$stmtProgress->close();
 $uid  = (int)$_SESSION['user_id'];
 $stmtU = $conn->prepare("SELECT jenjang, kelas, bypass_access FROM users WHERE id = ? LIMIT 1");
 $stmtU->bind_param("i", $uid);
@@ -62,16 +89,7 @@ $namaJenjang = [
     'sma' => 'SMA'
 ];
 $page = 'materi';
-// Tandai semua modul di kelas ini sudah dibuka
-foreach ($modulList as $m) {
-    $stmtR = $conn->prepare("
-        INSERT IGNORE INTO progress (user_id, modul_id, is_read, skor, status, attempt, updated_at)
-        VALUES (?, ?, 1, 0, 'proses', 0, NOW())
-    ");
-    $stmtR->bind_param("ii", $_SESSION['user_id'], $m['id']);
-    $stmtR->execute();
-    $stmtR->close();
-}
+
 ?>
 <!DOCTYPE html>
 <html lang="id">

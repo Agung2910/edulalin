@@ -39,6 +39,19 @@ if (!$row) {
     exit;
 }
 
+// Tandai quiz SIM mulai dikerjakan
+$stmtP = $conn->prepare("
+    INSERT INTO progress 
+    (user_id, modul_id, is_read, skor, poin_total, status, attempt, updated_at)
+    VALUES (?, ?, 0, 0, 0, 'proses', 1, NOW())
+    ON DUPLICATE KEY UPDATE
+    attempt = attempt + 1,
+    updated_at = NOW()
+");
+$stmtP->bind_param("ii", $user_id, $modul_id);
+$stmtP->execute();
+$stmtP->close();
+
 $judul_modul = $row['judul'];
 
 $stmt = $conn->prepare("
@@ -537,6 +550,54 @@ body {
   .score-display { padding: 3px 8px; font-size: 11px; }
   .opt-btn { min-height: 80px; font-size: 12px; }
 }
+
+#memePopup{
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0,0,0,0.88);
+
+  z-index: 999999;
+
+  opacity: 0;
+  pointer-events: none;
+
+  transition: opacity .25s ease;
+}
+
+#memePopup.show{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#memeImg{
+  max-width: 90vw;
+  max-height: 90vh;
+
+  border-radius: 24px;
+
+  object-fit: contain;
+
+  box-shadow:
+    0 20px 80px rgba(0,0,0,0.7);
+
+  animation: memePop .3s ease;
+}
+
+@keyframes memePop{
+  from{
+    transform: scale(.8);
+    opacity:0;
+  }
+  to{
+    transform: scale(1);
+    opacity:1;
+  }
+}
 </style>
 </head>
 <body>
@@ -651,7 +712,59 @@ let detail     = [];
 let pu5050Used = false;
 let puTimeUsed = false;
 
+/* ─── MEME DATA ─── */
+const memeBenar = [
+  {img: 'assets/img/meme/benar1.jpeg',},
+  {img: 'assets/img/meme/benar2.jpeg',},
+  {img: 'assets/img/meme/benar3.jpeg',},
+  {img: 'assets/img/meme/benar4.jpeg',},
+  {img: 'assets/img/meme/benar5.jpeg',},
+  {img: 'assets/img/meme/benar6.jpeg',},
+  {img: 'assets/img/meme/benar7.jpeg',},
+  {img: 'assets/img/meme/benar8.jpeg',},
+  {img: 'assets/img/meme/benar9.jpeg',},
+];
+
+const memeSalah = [
+  {img: 'assets/img/meme/salah1.jpeg',},
+  {img: 'assets/img/meme/salah2.jpeg',},
+  {img: 'assets/img/meme/salah3.jpeg',},
+  {img: 'assets/img/meme/salah4.jpeg',},
+  {img: 'assets/img/meme/salah5.jpeg',},
+  {img: 'assets/img/meme/salah6.jpeg',},
+  {img: 'assets/img/meme/salah7.jpeg',},
+  {img: 'assets/img/meme/salah8.jpeg',},
+  {img: 'assets/img/meme/salah9.jpeg',},
+];
+
 function $(id) { return document.getElementById(id); }
+
+function showMeme(type, onDone) {
+  const popup = $('memePopup');
+  const img   = $('memeImg');
+
+  const data =
+    type === 'correct'
+      ? memeBenar[Math.floor(Math.random() * memeBenar.length)]
+      : memeSalah[Math.floor(Math.random() * memeSalah.length)];
+
+  img.src = data.img;
+  popup.classList.add('show');
+
+  // Klik meme = tutup langsung + lanjut
+  popup.onclick = () => {
+    clearTimeout(popup._memeTimer);
+    popup.classList.remove('show');
+    popup.onclick = null;
+    if (typeof onDone === 'function') onDone();
+  };
+
+  popup._memeTimer = setTimeout(() => {
+    popup.classList.remove('show');
+    popup.onclick = null;
+    if (typeof onDone === 'function') onDone();
+  }, 1800);
+}
 
 function calcPoin(timeUsed, multi) {
   const ratio = 1 - (timeUsed / TIMER_SEC);
@@ -770,10 +883,12 @@ document.querySelectorAll('.opt-btn').forEach(btn => {
       showPtsPop('+' + poin, this);
       if (streak === 3 || streak === 5 || streak === 10) showStreakPop();
       spawnMiniConfetti();
+      showMeme('correct', () => { idx++; loadQ(); });
     } else {
       salah++; streak = 0;
       $('questionBox').classList.add('shake');
       setTimeout(() => $('questionBox').classList.remove('shake'), 500);
+      showMeme('wrong', () => { idx++; loadQ(); });
     }
     updateStreakUI();
     avgTime.push(timeUsed);
@@ -781,7 +896,6 @@ document.querySelectorAll('.opt-btn').forEach(btn => {
       opsi_a: questions[idx].opsi_a, opsi_b: questions[idx].opsi_b,
       opsi_c: questions[idx].opsi_c, opsi_d: questions[idx].opsi_d,
       jawaban: sel, benar: correct, poin: poin, timeout: false, is_correct: isCorrect });
-    setTimeout(() => { idx++; loadQ(); }, 1100);
   });
 });
 
@@ -816,15 +930,45 @@ function showStreakPop() {
   setTimeout(() => pop.remove(), 1400);
 }
 
-function spawnMiniConfetti() {
-  const colors = ['#facc15','#3b82f6','#10b981','#f472b6','#a78bfa'];
-  for (let i = 0; i < 12; i++) {
+function spawnMiniConfetti(){
+
+  const colors = [
+    '#facc15',
+    '#3b82f6',
+    '#10b981',
+    '#f472b6',
+    '#a78bfa',
+    '#f97316',
+    '#ffffff'
+  ];
+
+  for(let i = 0; i < 100; i++){
+
     const c = document.createElement('div');
-    const col = colors[Math.floor(Math.random() * colors.length)];
-    const sz  = 5 + Math.random() * 6;
-    c.style.cssText = `position:fixed;left:${20+Math.random()*60}%;top:${60+Math.random()*20}%;width:${sz}px;height:${sz}px;background:${col};border-radius:2px;pointer-events:none;z-index:999;animation:cfall ${0.6+Math.random()*0.6}s ease forwards;`;
+
+    const size = 4 + Math.random() * 12;
+
+    c.style.cssText = `
+      position:fixed;
+      left:${Math.random()*100}%;
+      top:-20px;
+      width:${size}px;
+      height:${size}px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      border-radius:${Math.random() > .5 ? '50%' : '2px'};
+      pointer-events:none;
+      z-index:9999;
+      opacity:1;
+      --drift:${-250 + Math.random()*500}px;
+      animation:confettiBlast ${2 + Math.random()*3}s cubic-bezier(.15,.89,.32,1.2) forwards;
+      box-shadow:0 0 10px rgba(255,255,255,.4);
+    `;
+
     document.body.appendChild(c);
-    setTimeout(() => c.remove(), 1200);
+
+    setTimeout(() => {
+      c.remove();
+    }, 5000);
   }
 }
 
@@ -952,5 +1096,10 @@ loadQ();
 </script>
 
 <?php endif; ?>
+
+<div id="memePopup" class="meme-popup">
+  <img id="memeImg" src="">
+</div>
+
 </body>
 </html>

@@ -20,11 +20,20 @@ $batasUsia = 17;
 $bolehAkses = !empty($_SESSION['bypass_access']) || ($usia !== null && $usia >= $batasUsia);
 
 $stmt = $conn->prepare("
-    SELECT id, judul, deskripsi, tipe, file_path, video_url
-    FROM modul
-    WHERE kategori = 'sim'
-    AND is_active = 1
-    ORDER BY id ASC
+    SELECT 
+        m.id,
+        m.judul,
+        m.deskripsi,
+        m.tipe,
+        m.file_path,
+        m.video_url,
+        COUNT(q.id) AS total_soal
+    FROM modul m
+    LEFT JOIN quiz q ON q.materi_id = m.id
+    WHERE m.kategori = 'sim'
+    AND m.is_active = 1
+    GROUP BY m.id
+    ORDER BY m.id ASC
 ");
 $stmt->execute();
 $modulSIM = $stmt->get_result();
@@ -71,43 +80,76 @@ $stmt->close();
 
                     <?php if ($bolehAkses): ?>
                         <div class="table-wrapper">
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th>No</th>
-                                        <th>Judul Materi</th>
-                                        <th>Tipe</th>
-                                        <th>Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                <?php $no = 1; while ($m = $modulSIM->fetch_assoc()): ?>
-                                <tr>
-                                    <td><?= $no++ ?></td>
-                                    <td>
-                                        <strong><?= htmlspecialchars($m['judul']) ?></strong>
-                                        <?php if (!empty($m['deskripsi'])): ?>
-                                            <br>
-                                            <span class="desc"><?= htmlspecialchars($m['deskripsi']) ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <span class="badge <?= $m['tipe'] ?>">
-                                            <?= strtoupper($m['tipe']) ?>
+                        <table class="custom-table">
+                            <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Judul Materi</th>
+                                <th>Soal</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            <?php 
+                            $no = 1;
+
+                            if ($modulSIM->num_rows > 0):
+                                while ($m = $modulSIM->fetch_assoc()):
+                            ?>
+                            <tr>
+                                <td><?= $no++ ?></td>
+                                <td>
+                                    <strong><?= htmlspecialchars($m['judul']) ?></strong>
+                                    <?php if (!empty($m['deskripsi'])): ?>
+                                        <br>
+                                        <span class="desc">
+                                            <?= htmlspecialchars($m['deskripsi']) ?>
                                         </span>
-                                    </td>
-                                    <td>
-                                        <?php if ($m['tipe'] === 'pdf' && $m['file_path']): ?>
-                                            <a href="<?= htmlspecialchars($m['file_path']) ?>" target="_blank" class="btn btn-outline">Buka PDF</a>
-                                        <?php elseif ($m['tipe'] === 'video' && $m['video_url']): ?>
-                                            <a href="<?= htmlspecialchars($m['video_url']) ?>" target="_blank" class="btn btn-primary">Tonton</a>
-                                        <?php endif; ?>
-                                        <a href="sim_quiz.php?modul_id=<?= $m['id'] ?>" class="btn btn-primary">📝 Kuis</a>
-                                    </td>
-                                </tr>
-                                <?php endwhile; ?>
-                                </tbody>
-                            </table>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <span class="badge soal">
+                                        <?= $m['total_soal'] ?> soal
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php if ($m['total_soal'] > 0): ?>
+                                        <span class="badge ready">Tersedia</span>
+                                    <?php else: ?>
+                                        <span class="badge empty">Kosong</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($m['tipe'] === 'pdf' && $m['file_path']): ?>
+                                        <a href="read_sim.php?id=<?= $m['id'] ?>" target="_blank" class="btn btn-outline">
+                                            📄 PDF
+                                        </a>
+                                    <?php elseif ($m['tipe'] === 'video' && $m['video_url']): ?>
+                                        <a href="<?= htmlspecialchars($m['video_url']) ?>" target="_blank" class="btn btn-outline">
+                                            ▶ Video
+                                        </a>
+                                    <?php endif; ?>
+
+                                    <a href="sim_quiz.php?modul_id=<?= $m['id'] ?>" class="btn btn-primary">
+                                        📝 Kuis
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <?php 
+                                endwhile;
+                            else:
+                            ?>
+                            <tr>
+                                <td colspan="5" style="text-align:center; padding:20px;">
+                                    Belum ada materi SIM tersedia.
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                            </tbody>
+                        </table>
                         </div>
                         <div class="alert" style="margin-top:16px;">
                             Tips: Pelajari semua materi sebelum mengerjakan kuis SIM.

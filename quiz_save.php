@@ -49,4 +49,23 @@ if ($res->num_rows > 0) {
 }
 
 $stmt->close();
+$quiz_id = $materi_id;
+
+$stmt2 = $conn->prepare("
+    INSERT INTO quiz_attempts 
+    (user_id, quiz_id, score, total_questions, correct_answers)
+    VALUES (?, ?, ?, ?, ?)
+");
+
+$stmt2->bind_param(
+    "iiiii",
+    $user_id,
+    $quiz_id,
+    $skor,
+    $total,
+    $skor // asumsi: skor = correct_answers (kalau beda, sesuaikan)
+);
+
+$stmt2->execute();
+$stmt2->close();
 echo json_encode(['ok' => true, 'poin' => $poin, 'status' => $status]);
